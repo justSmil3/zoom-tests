@@ -26,7 +26,8 @@ function ZoomTest(){
     const [isMouseDown, SetIsMouseDown] = useState(false);
     const [movement, setMovement] = useState({x: 0, y: 0});
     const [deltaMovement, setDeltaMovement] = useState({x: 0, y: 0});
-    const CanvasSize = 512;
+    const CanvasWidth = 512;
+    const CanvasHeight = 512;
     const speed = 1;
     const touchSpeed = .05;
     const testImgSrc = "test5.png";
@@ -35,52 +36,34 @@ function ZoomTest(){
     const handleZoom = (e) => {
         if(e.nativeEvent.wheelDeltaX == 0 && Math.abs(e.nativeEvent.wheelDeltaY) == 240)
         {
-            var zoom = e.nativeEvent.deltaY;
+            var deltaZoom = e.nativeEvent.deltaY;
             var multiplier = img.height / img.width; // this is so that the zoom gets applied evenly
-
-            var _width = clamp(imgWidth+zoom,1, img.width);
-            var _height = clamp(imgHeight+(zoom * multiplier),1 * multiplier, img.height);
-            var per = _width > _height ? _width / CanvasSize : _height / CanvasSize;
+            var minimumSize = 1;
+            var _width = clamp(imgWidth+deltaZoom,minimumSize, img.width);
+            var _height = clamp(imgHeight+(deltaZoom * multiplier),minimumSize * multiplier, img.height);
+            if(_width <= minimumSize || _height <= minimumSize * multiplier)
+            {
+                return;
+            }
 
             var _mousePos = {x: e.pageX - e.target.offsetLeft, y: e.pageY - e.target.offsetTop};
-            var relativeMousePos = {x: mousePos.x / CanvasSize, y: mousePos.y / CanvasSize};
-            console.log(per);
-            var _canvasSize = {x: 512, y: 512};
-            
-            var _imgOffsetX = (img.width - _width) - (_canvasSize.x - Math.min(img.width / _height * _canvasSize.x, _canvasSize.x)) * per;
-            //var _imgOffsetX = (zoom * multiplier) - (_canvasSize.x - Math.min(img.width / _height * _canvasSize.x, _canvasSize.x)) * per;
-            var _imgOffsetY = (img.height - _height) - ((_canvasSize.y - Math.min(img.height / _width * _canvasSize.y, _canvasSize.y)) * per); 
-            //var _imgOffsetY = (zoom) - ((_canvasSize.y - Math.min(img.height / _width * _canvasSize.y, _canvasSize.y)) * per); 
+            var _zoom = deltaZoom;
+
+            // lines are half commented so I can handle all the spacing in the function below
+            var _imgOffsetX = (img.width - _width);
+            var _imgOffsetY = (img.height - _height);
 
 
-            var absoluteSizeY = Math.min(img.height / img.width * CanvasSize, CanvasSize);
-            var absoluteSpaceY = (CanvasSize - absoluteSizeY) / 2;
-            var absoluteSizeX = Math.min(img.width / img.height * CanvasSize, CanvasSize);
-            var absoluteSpaceX = (CanvasSize - absoluteSizeX) / 2;
-
-
-            var _mouseMult = {
-                x: (relativeMousePos.x * _width + imgOffset.x - movement.x + absoluteSpaceX) / img.width,
-                y: (relativeMousePos.y * _height + imgOffset.y - movement.y + absoluteSpaceY) / img.height
-            };
-            _imgOffsetX *= ((_mouseMult.x));// * Math.abs(img.width - _width);// / _canvasSize.x));
-            _imgOffsetY *= ((_mouseMult.y));// * Math.abs(img.height - _height);// / _canvasSize.y));
-
-            
-            // var _imgOffset = {
-            //     x: clamp(imgOffset.x - _imgOffsetX - ((_canvasSize.x - Math.min(img.width/_height*_canvasSize.x, _canvasSize.x))/2), 0, img.width - _width), 
-            //     y: clamp(imgOffset.y - _imgOffsetY - ((_canvasSize.y - Math.min(img.height/_width*_canvasSize.y, _canvasSize.y))/2), 0, img.height - _height) // somehwo preven growth here
-            // };
             var _imgOffset = {
-                x: clamp(_imgOffsetX * relativeMousePos.x, 0, img.width - _width), 
-                y: clamp(_imgOffsetY * relativeMousePos.y, 0, img.height - _height) // somehwo preven growth here
+                x: clamp(_imgOffsetX, 0, img.width - _width), 
+                y: clamp(_imgOffsetY, 0, img.height - _height) 
             };
-
             setDeltaMovement({x: 0, y: 0});
             setMousePos(_mousePos);
             setImgOffset({x: _imgOffset.x, y: _imgOffset.y}); 
             setImgHeight(_height); 
             setImgWidth(_width);
+            setZoom(_zoom);
         }
         else
         {
@@ -126,8 +109,8 @@ function ZoomTest(){
         if(canvas == null || ctx == null) return;
         var spaceX = 0;
         var spaceY = 0;
-        var sizeX = CanvasSize;
-        var sizeY = CanvasSize;
+        var sizeX = CanvasWidth;
+        var sizeY = CanvasHeight;
         // need to make sure that part works, but I think the idea of zooming this way is right 
         var _width = imgWidth;
         var _height = imgHeight;
@@ -138,47 +121,55 @@ function ZoomTest(){
         var imgOffsetY = imgOffset.y;
 
         // clear the rect
-        ctx.clearRect(0,0,512,512);
+        ctx.clearRect(0,0,CanvasWidth,CanvasHeight);
 
         // handle the scrolling in
-        if (img.width > img.height){
-            longside = _width;
-            sizeY = Math.min(img.height / _width * CanvasSize, CanvasSize);
-            spaceY = (CanvasSize - sizeY) / 2;
-        }else {longside = _height;
-            sizeX = Math.min(img.width / _height * CanvasSize, CanvasSize);
-            spaceX = (CanvasSize - sizeX) / 2;
-        };
-
-        imgOffsetX = Math.max(imgOffsetX - (CanvasSize - sizeX), 0)
-        imgOffsetY = Math.max(imgOffsetY - (CanvasSize - sizeY), 0)
+        var zoomMultX = 1;//img.width/img.height;
+        var zoomMultY = img.height/img.width;
+        var per = 1;
         
-        var per = (longside / 512);
-        var _imgOffsetX = Math.max((img.width - _width) - ((CanvasSize - Math.min(img.width / img.height * CanvasSize, CanvasSize)) * per), 0);
-        var _imgOffsetY = Math.max((img.height - _height) - ((CanvasSize - Math.min(img.height / img.width * CanvasSize, CanvasSize)) * per), 0);
+        if (img.width / CanvasWidth > img.height / CanvasHeight){
+            per = _width / CanvasWidth;
+            sizeY = Math.min(img.height / _width * CanvasWidth, CanvasHeight);
+            spaceY = (CanvasHeight - sizeY) / 2;
+            zoomMultY = CanvasHeight / CanvasWidth;
+        }else {
+            per = _height / CanvasHeight;
+            sizeX = Math.min(img.width / _height * CanvasHeight, CanvasWidth);
+            spaceX = (CanvasWidth - sizeX) / 2;
+            zoomMultX = img.height / img.width* (CanvasWidth/CanvasHeight);
+        };
+        
+        var absoluteSpaceX = ((CanvasWidth - Math.min(img.width / img.height * CanvasHeight, CanvasWidth)));
+        var absoluteSpaceY = ((CanvasHeight - Math.min(img.height / img.width * CanvasWidth, CanvasHeight)));
+        var _imgOffsetX = (imgOffsetX - absoluteSpaceX * per) / 2;
+        var _imgOffsetY = (imgOffsetY - absoluteSpaceY * per) / 2;
 
         // handle movment while scrolled in 
-        var _movement = movement;
-        var tmpSpaceX = spaceX + (movement.x + deltaMovement.x);
-        var tmpOffsetX = imgOffsetX - (movement.x + deltaMovement.x);
-        var _tmpSpaceX = clamp(tmpSpaceX, 0, CanvasSize - sizeX);
-        var _tmpImgOffsetX = clamp(tmpOffsetX, 0, _imgOffsetX);
-        movement.x = (_tmpSpaceX - spaceX) - (_tmpImgOffsetX - imgOffsetX);
-        spaceX = _tmpSpaceX;
-        imgOffsetX = _tmpImgOffsetX;
+        var offsetHolderX = Math.max(_imgOffsetX, 0);
+        var offsetHolderY = Math.max(_imgOffsetY, 0);
 
-        var tmpSpaceY = spaceY + (movement.y + deltaMovement.y);
-        var tmpOffsetY = imgOffsetY - (movement.y + deltaMovement.y);
-        var _tmpSpaceY = clamp(tmpSpaceY, 0, CanvasSize - sizeY);
-        var _tmpImgOffsetY = clamp(tmpOffsetY, 0, _imgOffsetY);
-        movement.y = (_tmpSpaceY - spaceY) - (_tmpImgOffsetY - imgOffsetY);
-        spaceY = _tmpSpaceY;
-        imgOffsetY = _tmpImgOffsetY;
+        var relativeMousePos = {x: (mousePos.x) / CanvasWidth, y: (mousePos.y) / CanvasHeight};
+        var mvmX = movement.x + deltaMovement.x + zoom * zoomMultX / 2 * (relativeMousePos.x * 2 - 1); // TODO continue from here
+        var mvmY = movement.y + deltaMovement.y + zoom * zoomMultY / 2 * (relativeMousePos.y * 2 - 1);
+        setZoom(0);
+        
+        var _movement = {x:clamp(mvmX, -spaceX-offsetHolderX ,spaceX+offsetHolderX), 
+                         y:clamp(mvmY, -spaceY-offsetHolderY ,spaceY+offsetHolderY)};
+                         
+        var _spaceX = clamp(spaceX + _movement.x, 0, spaceX*2);
+        var offMvmx= _movement.x - (_spaceX - spaceX);
+        _imgOffsetX -= offMvmx;
 
+        var _spaceY = clamp(spaceY + _movement.y, 0, spaceY*2);
+        var offMvmy= _movement.y - (_spaceY - spaceY);
+        _imgOffsetY -= offMvmy;
+        
         setMovement(_movement);
-
-        // draw the final result
-        ctx.drawImage(img,imgOffsetX,imgOffsetY,per * sizeX, per * sizeY, spaceX, spaceY, sizeX, sizeY);
+        _imgOffsetX = Math.max(_imgOffsetX, 0);
+        _imgOffsetY = Math.max(_imgOffsetY, 0);
+        
+        ctx.drawImage(img,_imgOffsetX,_imgOffsetY,per * sizeX, per * sizeY, _spaceX, _spaceY, sizeX, sizeY);
 
     },[imgOffset, imgHeight, imgWidth, mousePos, deltaMovement]);
 
@@ -196,13 +187,14 @@ function ZoomTest(){
     return(
 	    <div>
             <canvas 
+                style={{ background: "#232323"}}
                 onMouseMove={(e)=>moveMouse(e)} 
                 onMouseUp={handleMouseDown} 
                 onMouseDown={handleMouseDown}    
                 onMouseEnter={disableZoom}
                 onMouseLeave={enableZoom} 
                 onWheel={handleZoom} 
-                width={512} height={512} ref={canvRef}/>
+                width={CanvasWidth} height={CanvasHeight} ref={canvRef}/>
         </div>
     );
 }
