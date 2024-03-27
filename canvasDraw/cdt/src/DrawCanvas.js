@@ -1,5 +1,6 @@
 import React, {useState, useRef, useEffect} from 'react';
 
+// THIS IS THE OLDER VERSION OF THE DRAW FUNCTION, USE THE OTHER ONE
 function DrawCanvas() {
     const [bOneCanvas, setBOneCanvas] = useState(true);
     const [bMousePressed, setBMousePressed] = useState(false);

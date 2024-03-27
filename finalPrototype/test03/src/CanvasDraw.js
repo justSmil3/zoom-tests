@@ -1,11 +1,19 @@
+// Important fact: The code from the multicanvas draw test is adjusted to the fact that I am constraining the drawing itself just to the fist context
+
 import { useState, useEffect } from "react";
 
+const MAX_IMG_VALUE = 1024;
+
+const strokeColors = ["rgba(255, 10, 10, 0.3)", "rgba(10, 10, 255, 0.3)", "rgba(10, 255, 10, 0.3)"];
 
 function CanvasDraw({_canvasTypes, canvasSize, splitSpace}) {
 
     const clamp = (x, min, max) => {
         return Math.max(Math.min(x, max), min);
     };
+    const dist = (p1, p2) => {
+        return Math.sqrt(Math.pow(p1.x-p2.x,2) + Math.pow(p1.y-p2.y,2));
+    }
 
     const [canvas1, setCanvas1] = useState({});
     const [canvas2, setCanvas2] = useState({});
@@ -40,23 +48,51 @@ function CanvasDraw({_canvasTypes, canvasSize, splitSpace}) {
     //img.src = 'images/test5.png';
 
     const CanvasTypes = ["image", "mod", ..._canvasTypes, "interface"];
+
+    const maskColors = CanvasTypes.map(typeName => {
+        return 1;
+    });
+
+
     const leftScreen = Math.floor(canvasSize / 2) + splitSpace;
     const leftButton = canvasSize-60;
     // init the matrices
     useEffect(() => {
+        console.log(maskColors);
         ctx1['image'].drawImage(img, 0, 0, canvasSize, canvasSize);
         CanvasTypes.map((name) => {
             matrix1[name] = new Array();
             matrix2[name] = new Array();
-            for(var j = 0; j < canvasSize; j++)
-            {
-                matrix1[name][j] = new Array(canvasSize).fill(0);
-                matrix2[name][j] = new Array(canvasSize).fill(0);
+
+            var matrixWidth = 0;
+            var matrixHeight = 0;
+
+            var matrixSizeScalar = (function(){
+                var longSide = Math.max(img.width, img.height);
+                var rest = longSide - MAX_IMG_VALUE;
+                if(rest <= 0) {
+                    return 1;
+                }
+                else {
+                    return 1 - (rest / longSide);
+                }
+            })();
+
+            matrixWidth = img.width / matrixSizeScalar;
+            matrixHeight = img.height / matrixSizeScalar;
+            
+            for(var j = 0; j < matrixWidth; j++)
+            { // TODO this causes an error, FIX THIS 
+                matrix1[name][j] = new Array(matrixHeight).fill(0); // CHANGED: used to use the canvas size to determain the size of the matricies, 
+                //matrix2[name][j] = new Array(matrixHeight).fill(0); // This change was made first of all because just the image dimensions are drawn on
+                                                                    // as well as the image is the thing that is important for the drawn masks.
+                // matrix2 commented out for now because it is never actually intended to draw on the second canvas itself !
             }
         });
         setImgHeight(img.height);
         setImgWidth(img.width);
     }, []);
+
 
     useEffect(() => {
         var spaceX = 0;
@@ -79,11 +115,6 @@ function CanvasDraw({_canvasTypes, canvasSize, splitSpace}) {
             }
         };
 
-        ctx1["image"].fillStyle = '#000000';
-        ctx1["image"].fillRect(0,0,ctx1["image"].canvas.width, ctx1["image"].canvas.height);
-        ctx2["image"].fillStyle = '#000000';
-        ctx2["image"].fillRect(0,0,ctx2["image"].canvas.width, ctx2["image"].canvas.height);
-
         ctx1["image"].drawImage(img, 0,0,img.width,img.height,spaceX,spaceY+Math.floor((canvasSize - canWidth1) / 2),sizeX,sizeY);
         ctx2["image"].drawImage(img, 0,0,img.width,img.height,spaceX,spaceY+Math.floor((canvasSize - canWidth2) / 2),sizeX,sizeY);
     }, [canWidth1, canWidth2]);
@@ -99,10 +130,11 @@ function CanvasDraw({_canvasTypes, canvasSize, splitSpace}) {
         var _height = imgHeight;
         var imgOffsetX = imgOffset.x;
         var imgOffsetY = imgOffset.y;
-        var activeCtx = activeSite ? ctx2 : ctx1;
+        // var activeCtx = activeSite ? ctx2 : ctx1; // not needed if drawing is only possible on the first canvas 
 
         // clear the rect
-        activeCtx["image"].clearRect(0,0,canWidth1,canvasHeight);
+        ctx1["image"].clearRect(0,0,canWidth1,canvasHeight);
+        ctx2["image"].clearRect(0,0,canWidth1,canvasHeight);
 
         // handle the scrolling in
         var zoomMultX = 1;//img.width/img.height;
@@ -150,7 +182,8 @@ function CanvasDraw({_canvasTypes, canvasSize, splitSpace}) {
         _imgOffsetX = Math.max(_imgOffsetX, 0);
         _imgOffsetY = Math.max(_imgOffsetY, 0);
         
-        activeCtx["image"].drawImage(img,_imgOffsetX,_imgOffsetY,per * sizeX, per * sizeY, _spaceX, _spaceY, sizeX, sizeY);
+        ctx1["image"].drawImage(img,_imgOffsetX,_imgOffsetY,per * sizeX, per * sizeY, _spaceX, _spaceY, sizeX, sizeY);
+        // ctx2["image"].drawImage(img,_imgOffsetX,_imgOffsetY,per * sizeX, per * sizeY, _spaceX, _spaceY, sizeX, sizeY); // commented out becaused This is zoom
 
     },[imgOffset, imgHeight, imgWidth, mousePos, deltaMovement]);
 
@@ -214,6 +247,58 @@ function CanvasDraw({_canvasTypes, canvasSize, splitSpace}) {
             moveMouse(e, true, {x: e.nativeEvent.wheelDeltaX, y: e.nativeEvent.wheelDeltaY});
         }
     };
+
+    // TODO Implement this funcion! 
+    function Draw(mouseDelta, last, cp){
+        if(ctx1[name] == null) {
+            return;
+        }
+        var deltaMagnitude = Math.sqrt(Math.pow(mouseDelta.x, 2) + Math.pow(mouseDelta.y, 2));
+        for(var i = 0; i <= deltaMagnitude; i++)
+        {
+            var dx = mouseDelta.x * (i / deltaMagnitude);
+            var dy = mouseDelta.y * (i / deltaMagnitude);
+            var new_pos = ({
+                x: last.x + dx,
+                y: last.y + dy
+            });
+            let tmp = 1;
+            if (name == "mod"){
+                tmp = 2;
+            }
+            else if (name == "mask") {
+                tmp = 3;
+            }
+            let radius = 5;
+            for (var x = -radius; x < radius; x++){
+                for(var y = -radius; y < radius; y++){
+                    if(dist({x: x, y: y}, {x: 0, y: 0}) <= radius){
+                        var mp = {x: clamp(Math.floor(new_pos.x + x), 0, 511), y: clamp(Math.floor(new_pos.y + y), 0, 511)}; // TODO remove hard coded values 
+                        if(isNaN(mp.x) || isNaN(mp.y)){
+                            return; // this could potentially lead to skips, if it does, change to continue
+                        }
+                        if(isEraser){
+                            ctx1[name].clearRect(mp.x, mp.y, 1, 1);
+                            ctx2[name].clearRect(mp.x, mp.y, 1, 1);
+                            matrix1[name][mp.x][mp.y] = 0;
+                            matrix2[name][mp.x][mp.y] = 0;
+                        }
+                        else if(matrix1[name][mp.x][mp.y] == 0)
+                        {
+                            var color = strokeColors[tmp - 1]; // TODO these are the colors of the different modes, randomize them 
+                            ctx1[name].fillStyle = color;
+                            ctx1[name].fillRect(mp.x, mp.y, 1, 1);
+                            ctx2[name].fillStyle = color;
+                            ctx2[name].fillRect(mp.x, mp.y, 1, 1);
+                            matrix1[name][mp.x][mp.y] = tmp;
+                            matrix2[name][mp.x][mp.y] = tmp;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     function moveMouse(e, bActive = false, mousemove = {x: 0, y: 0}){
         if(!bActive && !isMouseDown){
             setDeltaMovement({x: 0, y: 0});
@@ -230,14 +315,14 @@ function CanvasDraw({_canvasTypes, canvasSize, splitSpace}) {
         setDeltaMovement(dm);
     }
 
-    const handleClear = () => {
-        var activeCtx = activeSite ? ctx2 : ctx1;
-        var activeCanvas = activeSite ? canvas2 : canvas1;
-        var activeMatrix = activeSite ? matrix2 : canvas2;
-        activeCtx[name].clearRect(0, 0, activeCanvas[name].width, activeCanvas[name].height);
-        for(var i = 0; i < activeMatrix[name].length; i++){
-            activeMatrix[name][i].fill(0);
-        }
+    const handleClear = () => { // TODO change needed here 
+        // var activeCtx = activeSite ? ctx2 : ctx1;
+        // var activeCanvas = activeSite ? canvas2 : canvas1;
+        // var activeMatrix = activeSite ? matrix2 : canvas2;
+        // activeCtx[name].clearRect(0, 0, activeCanvas[name].width, activeCanvas[name].height);
+        // for(var i = 0; i < activeMatrix[name].length; i++){
+        //     activeMatrix[name][i].fill(0);
+        // }
     };
 
     const handleMouseLeave = (e) => {
